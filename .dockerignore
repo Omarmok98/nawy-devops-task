@@ -1,0 +1,13 @@
+**/node_modules
+**/*.log
+**/.env
+**/.env.*
+**/.DS_Store
+**/.vscode
+**/.README.md
+**/.gitignore
+**/.prettierrc
+**/.eslintrc
+**/.eslintignore
+**/eslint.config.mjs
+**/.git
