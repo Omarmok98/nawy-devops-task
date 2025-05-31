@@ -21,6 +21,4 @@ jobs:
         with:
           context: ./node-hello
           push: true
-          tags: |
-            ${{ secrets.DOCKER_USERNAME }}/node-hello:latest
-            ${{ secrets.DOCKER_USERNAME }}/node-hello:${{ github.sha }}
+          tags: ${{ secrets.DOCKER_USERNAME }}/node-hello:latest
