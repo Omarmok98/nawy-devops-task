@@ -1,0 +1,213 @@
+---
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: fluent-bit
+  namespace: default
+  labels:
+    helm.sh/chart: fluent-bit-0.49.0
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/instance: fluent-bit
+    app.kubernetes.io/version: "4.0.1"
+    app.kubernetes.io/managed-by: Helm
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: fluent-bit
+  namespace: default
+  labels:
+    helm.sh/chart: fluent-bit-0.49.0
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/instance: fluent-bit
+    app.kubernetes.io/version: "4.0.1"
+    app.kubernetes.io/managed-by: Helm
+data:
+  custom_parsers.conf: |
+    [PARSER]
+        Name docker_no_time
+        Format json
+        Time_Keep Off
+        Time_Key time
+        Time_Format %Y-%m-%dT%H:%M:%S.%L
+    
+  fluent-bit.conf: |
+    [SERVICE]
+        Daemon Off
+        Flush 1
+        Log_Level info
+        Parsers_File /fluent-bit/etc/parsers.conf
+        Parsers_File /fluent-bit/etc/conf/custom_parsers.conf
+        HTTP_Server On
+        HTTP_Listen 0.0.0.0
+        HTTP_Port 2020
+        Health_Check On
+    
+    [INPUT]
+        Name tail
+        Path /var/log/containers/*.log
+        multiline.parser docker, cri
+        Tag kube.*
+        Mem_Buf_Limit 5MB
+        Skip_Long_Lines On
+        Read_From_Head On
+        Refresh_Interval    10
+        Rotate_Wait         30
+        
+    [FILTER]
+        Name kubernetes
+        Match kube.*
+        Merge_Log On
+        Keep_Log Off
+        K8S-Logging.Parser On
+        K8S-Logging.Exclude On
+    
+    [FILTER]
+        Name grep
+        Match kube.*
+        Regex kubernetes.namespace_name ^node-hello$
+    
+    [OUTPUT]        
+        name          nrlogs
+        match         *
+        license_key eu01xxda3f6c62904cc597e3fb6b551bFFFFNRAL
+        base_uri      https://log-api.eu.newrelic.com/log/v1
+        tls           On
+        tls.verify    Off
+
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: fluent-bit
+  labels:
+    helm.sh/chart: fluent-bit-0.49.0
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/instance: fluent-bit
+    app.kubernetes.io/version: "4.0.1"
+    app.kubernetes.io/managed-by: Helm
+rules:
+  - apiGroups:
+      - ""
+    resources:
+      - namespaces
+      - pods
+    verbs:
+      - get
+      - list
+      - watch
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: fluent-bit
+  labels:
+    helm.sh/chart: fluent-bit-0.49.0
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/instance: fluent-bit
+    app.kubernetes.io/version: "4.0.1"
+    app.kubernetes.io/managed-by: Helm
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: ClusterRole
+  name: fluent-bit
+subjects:
+  - kind: ServiceAccount
+    name: fluent-bit
+    namespace: default
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: fluent-bit
+  namespace: default
+  labels:
+    helm.sh/chart: fluent-bit-0.49.0
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/instance: fluent-bit
+    app.kubernetes.io/version: "4.0.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  type: ClusterIP
+  ports:
+    - port: 2020
+      targetPort: http
+      protocol: TCP
+      name: http
+  selector:
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/instance: fluent-bit
+---
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: fluent-bit
+  namespace: default
+  labels:
+    helm.sh/chart: fluent-bit-0.49.0
+    app.kubernetes.io/name: fluent-bit
+    app.kubernetes.io/instance: fluent-bit
+    app.kubernetes.io/version: "4.0.1"
+    app.kubernetes.io/managed-by: Helm
+spec:
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: fluent-bit
+      app.kubernetes.io/instance: fluent-bit
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: fluent-bit
+        app.kubernetes.io/instance: fluent-bit
+      annotations:
+        checksum/config: a5dd61a980efc4899bf442e0ff76868b3c5f62aaa8c6a308fa7d80cba6368cb9
+    spec:
+      serviceAccountName: fluent-bit
+      hostNetwork: false
+      dnsPolicy: ClusterFirst
+      containers:
+        - name: fluent-bit
+          image: "newrelic/newrelic-fluentbit-output"
+          imagePullPolicy: IfNotPresent
+          command:
+            - /fluent-bit/bin/fluent-bit
+          args:
+            - --workdir=/fluent-bit/etc
+            - --config=/fluent-bit/etc/conf/fluent-bit.conf
+          ports:
+            - name: http
+              containerPort: 2020
+              protocol: TCP
+          livenessProbe:
+            httpGet:
+              path: /
+              port: http
+          readinessProbe:
+            httpGet:
+              path: /api/v1/health
+              port: http
+          volumeMounts:
+            - name: config
+              mountPath: /fluent-bit/etc/conf
+            - mountPath: /var/log
+              name: varlog
+            - mountPath: /var/lib/docker/containers
+              name: varlibdockercontainers
+              readOnly: true
+            - mountPath: /etc/machine-id
+              name: etcmachineid
+              readOnly: true
+      volumes:
+        - name: config
+          configMap:
+            name: fluent-bit
+        - hostPath:
+            path: /var/log
+          name: varlog
+        - hostPath:
+            path: /var/lib/docker/containers
+          name: varlibdockercontainers
+        - hostPath:
+            path: /etc/machine-id
+            type: File
+          name: etcmachineid
