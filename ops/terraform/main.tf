@@ -16,7 +16,7 @@ resource "kubernetes_deployment_v1" "deployment" {
   }
 
   spec {
-    replicas = 1
+    replicas = var.replica_count
 
     selector {
       match_labels = {
@@ -32,6 +32,7 @@ resource "kubernetes_deployment_v1" "deployment" {
       }
 
       spec {
+        service_account_name = kubernetes_service_account_v1.service_account.metadata[0].name
         container {
           name  = var.application_name
           image = var.image_repository
@@ -42,6 +43,35 @@ resource "kubernetes_deployment_v1" "deployment" {
         }
       }
     }
+  }
+  
+}
+
+resource "kubernetes_service_v1" "service" {
+  metadata {
+    name      = var.application_name
+    namespace = kubernetes_namespace.namespace.metadata[0].name
+  }
+
+  spec {
+    selector = {
+      app = var.application_name
+    }
+    port {
+      port        = var.port
+      target_port = var.port
+    }
+
+    #I am using  NodePort for simplicity, but in a production environment, you might want to use LoadBalancer or an Ingress
+    type = "NodePort"
+  }
+  
+}
+
+resource "kubernetes_service_account_v1" "service_account" {
+  metadata {
+    name      = var.application_name
+    namespace = kubernetes_namespace.namespace.metadata[0].name
   }
   
 }
