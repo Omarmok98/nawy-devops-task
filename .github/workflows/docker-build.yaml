@@ -21,4 +21,4 @@ jobs:
         with:
           context: ./node-hello
           push: true
-          tags: ${{ secrets.DOCKER_USERNAME }}/node-hello:latest, ${{ secrets.DOCKER_USERNAME }}/node-hello:${{ github.sha }}
+          tags: docker.io/${{ secrets.DOCKER_USERNAME }}/node-hello:latest, docker.io/${{ secrets.DOCKER_USERNAME }}/node-hello:${{ github.sha }}
