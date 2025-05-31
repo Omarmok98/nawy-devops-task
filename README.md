@@ -121,4 +121,7 @@ GitHub Actions workflows are defined to automate the build and deployment proces
   - Install the Project dependencies
   - Run ESlint based on the `eslint.config.mjs` configs
 
+## New relic Logs
+![Logs](image.png)
+![Log Message](image-1.png)
 
